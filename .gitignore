@@ -1,0 +1,26 @@
+# Audios generados/de prueba (pesan mucho, no van en Git)
+outputs/
+*.wav
+*.mp3
+*.flac
+
+# Checkpoints/modelos descargados (se re-descargan al ejecutar el notebook)
+*.ckpt
+*.pth
+*.pt
+pretrained_models/
+
+# Cache de modelos preentrenados (Hugging Face y similares)
+cache/
+.cache/
+huggingface/
+
+# Colab / Jupyter
+.ipynb_checkpoints/
+
+# Python
+__pycache__/
+*.pyc
+
+# Entorno
+.env
