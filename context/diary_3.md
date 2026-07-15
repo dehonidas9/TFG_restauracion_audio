@@ -259,3 +259,40 @@ Formato sugerido por entrada:
 **Próximos pasos:**
 - Empezar notebook `06_ClearVoice_MossFormer2.ipynb` (modelo combinado multi-tarea, usando ClearVoice/MossFormer2).
 - Definir con el tutor las fechas objetivo de los milestones en `milestones.md`.
+
+---
+
+## 2026-07-14
+
+**Hecho:**
+- **`06_ClearVoice_MossFormer2.ipynb` completado.** Con esto se da por **cerrada la Fase 2** (los 6 notebooks de modelo terminados).
+- Inferencia sobre audio real de prueba (voz de niña en catalán, obra de teatro infantil, mucho eco, micrófono lejano) con el pipeline combinado (denoising + dereverb + SR).
+- Calculado DNSMOS del resultado combinado y comparado frente al resultado de SE por separado.
+
+**Problemas / bloqueos:**
+- Ninguno técnico. Hallazgo a documentar (no es un bloqueo, es un resultado): el pipeline combinado SE+SR dio DNSMOS ligeramente **peor** que solo-SE en las 4 submétricas (ovrl/sig/bak/p808_mos), coincidiendo en dirección con la percepción auditiva ("se escucha considerablemente peor" con SR encima) pero con una magnitud numérica mucho menor de lo que sugiere la percepción subjetiva.
+
+**Decisiones tomadas:**
+- **Cambio de patrón para este notebook:** a diferencia de los notebooks 1-5, el notebook 6 (modelo combinado) **no** se compara contra un baseline clásico no-IA propio, sino contra los modelos individuales correspondientes (p. ej. solo-SE). No tiene sentido un "baseline clásico multi-tarea", así que la comparativa individual-vs-combinado sustituye aquí a la comparativa IA-vs-no-IA. **Importante dejarlo explícito en la memoria** (apartado de Metodología o de Desarrollo y resultados) para que no parezca una inconsistencia sino una decisión metodológica justificada.
+- El hallazgo de DNSMOS peor-pero-poco se documentará como ejemplo de la discrepancia objetivo/subjetivo, con dos hipótesis a desarrollar: (1) desajuste de dominio de DNSMOS (entrenado sobre DNS Challenge, voz adulta y mayormente en inglés) frente a un caso muy fuera de distribución; (2) posible alucinación/artefactos de alta frecuencia de los modelos SR generativos con inputs muy degradados, que afectan mucho a la percepción humana sin mover tanto las métricas no intrusivas.
+
+**Próximos pasos:**
+- Fase 3: recopilar las métricas bibliográficas publicadas de cada modelo (PESQ, STOI, SI-SDR, LSD).
+- Empezar a redactar Metodología y Desarrollo y resultados de la memoria, incorporando el cambio de patrón del notebook 6 y el hallazgo del DNSMOS.
+
+---
+
+## 2026-07-15
+
+**Hecho:**
+- Subidos `diary.md` y `milestones.md` actualizados a GitHub (commit: cierre de Fase 2 / notebook 6 completado).
+
+**Problemas / bloqueos:**
+- Ninguno técnico. Duda pendiente sobre el flujo correcto de clonar/sincronizar el repo entre GitHub y Drive (a resolver mañana).
+
+**Decisiones tomadas:**
+- Ninguna adicional.
+
+**Próximos pasos:**
+- Repasar bien el flujo de clonado del repo (GitHub ↔ Drive/Colab).
+- Empezar Fase 3: recopilación de métricas bibliográficas.
