@@ -286,9 +286,10 @@ Formato sugerido por entrada:
 
 **Hecho:**
 - Subidos `diary.md` y `milestones.md` actualizados a GitHub (commit: cierre de Fase 2 / notebook 6 completado).
+- Leído el documento técnico de "Deep Learning for audio signal processing" para contextualizar generalmente. 
 
 **Problemas / bloqueos:**
-- Ninguno técnico. Duda pendiente sobre el flujo correcto de clonar/sincronizar el repo entre GitHub y Drive (a resolver mañana).
+- Ninguno técnico. Duda pendiente sobre el flujo correcto de clonar/sincronizar el repo entre GitHub y Drive.
 
 **Decisiones tomadas:**
 - Ninguna adicional.
