@@ -1,0 +1,13 @@
+gradio>=4.0
+numpy==1.26.4
+librosa
+soundfile
+scipy
+pesq
+pystoi
+speechmos
+onnxruntime
+pandas
+torch
+torchaudio
+deepfilternet
