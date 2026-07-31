@@ -297,3 +297,174 @@ Formato sugerido por entrada:
 **Próximos pasos:**
 - Repasar bien el flujo de clonado del repo (GitHub ↔ Drive/Colab).
 - Empezar Fase 3: recopilación de métricas bibliográficas.
+
+# 16/07/2026 — Estudio de métricas: STOI y PESQ
+
+## Objetivo de la sesión
+Empezar el repaso de las métricas usadas en el TFG (bloque bibliográfico:
+PESQ, STOI, SI-SDR, LSD; bloque empírico: DNSMOS, NISQA), antes de redactar
+la sección de Metodología.
+
+## Trabajo realizado
+- Lectura completa del paper original de **STOI** (Taal et al., 2011). Fijado
+  que la implementación usada en el proyecto (`pystoi`, `extended=False`)
+  corresponde a esta cita, no a Jensen & Taal 2016 (ESTOI). Anotado que el
+  propio paper de STOI reconoce que no fue diseñado para condiciones de
+  reverberación — relevante para el bloque empírico (audio del tutor, con
+  reverb fuerte).
+- Lectura completa del paper original de **PESQ**. Anotado que el propio
+  paper reconoce poca correlación con el MOS subjetivo en escenarios de
+  clipping/silencio — directamente relevante para la categoría de de-clipping.
+
+## Pendiente
+Continuar con SI-SDR y LSD.
+
+---
+
+# 17/07/2026 — Estudio de métricas: SI-SDR y LSD
+
+## Objetivo de la sesión
+Continuar el repaso de métricas del bloque bibliográfico.
+
+## Trabajo realizado
+- **SI-SDR**: repasado el fundamento matemático completo — α como escalar
+  (no vector), ganancia óptima obtenida por proyección ortogonal de la señal
+  estimada sobre la referencia, con el error geométricamente perpendicular
+  a la referencia (demostrado vía producto escalar = 0), lo que da la
+  invarianza a escala.
+- **LSD**: repasado el cálculo (RMSE de doble promedio sobre valores de
+  energía log-espectral, en log₁₀ sin factor de 10, no estrictamente en dB).
+  Anotadas las precauciones: normalizar energía antes de calcular LSD, y el
+  problema de comparabilidad entre papers cuando usan convenciones distintas
+  (log₁₀ vs. 10·log₁₀). Fijada la cita de AERO (Mandel, Tal & Adi, 2022,
+  arXiv:2211.12232) en vez del paper de Gray & Markel, inaccesible.
+
+## Pendiente
+Continuar con DNSMOS y NISQA (bloque empírico).
+
+---
+
+# 18/07/2026 — Estudio de métricas: DNSMOS y NISQA
+
+## Objetivo de la sesión
+Cerrar el repaso de métricas con las dos no-intrusivas del bloque empírico.
+
+## Trabajo realizado
+- **DNSMOS**: leída la parte descriptiva del paper (arXiv:2110.01763) a partir
+  de un resumen, para entender el funcionamiento general (estimación de MOS
+  sin referencia limpia, submétricas SIG/BAK/OVRL).
+- **NISQA**: mismo enfoque — resumen + lectura de la parte descriptiva del
+  paper (arXiv:2104.09494), como comparativa con DNSMOS al ser de la misma
+  familia (predictores neuronales de MOS no-intrusivos).
+
+## Pendiente
+Profundizar en DNSMOS y NISQA antes de redactar Metodología (según lo acordado,
+tratamiento en profundidad para DNSMOS y comparativo para NISQA). Con las 6
+métricas ya repasadas al menos una vez, el siguiente paso natural es empezar
+a redactar la sección de Metodología.
+
+---
+
+# 28/07/2026 — Lectura del paper de DeepFilterNet
+
+## Objetivo de la sesión
+Revisar en profundidad el modelo de denoising seleccionado, antes de conectar
+su inferencia en la app.
+
+## Trabajo realizado
+- Lectura del paper de DeepFilterNet (arquitectura DeepFilterNet2/3), apoyada
+  con resúmenes para facilitar la digestión de las partes más densas.
+- Sesión realizada desde otro dispositivo, usando Gemini como apoyo.
+
+## Pendiente
+Continuar con el paper de HTDemucs (siguiente modelo en el orden de la Fase 2).
+
+---
+
+# 29/07/2026 — Lectura del paper de HTDemucs
+
+## Objetivo de la sesión
+Revisar en profundidad el modelo de separación de fuentes seleccionado.
+
+## Trabajo realizado
+- Lectura del paper de HTDemucs v4, apoyada con resúmenes para facilitar la
+  digestión de las partes más densas.
+- Sesión realizada desde otro dispositivo, usando Gemini como apoyo.
+
+## Pendiente
+Con DeepFilterNet y HTDemucs ya revisados a nivel de paper, continuar con el
+resto de modelos (MP-SENet, AudioSR, VoiceFixer, ClearVoice/MossFormer2) y
+retomar el desarrollo de la app (Fase 4).
+
+# 31/07/2026 — Primera versión funcional de la app (Gradio, categoría Denoising)
+
+## Objetivo de la sesión
+Cambio de orden en el plan de trabajo: adelantar el desarrollo de la aplicación
+(Fase 4) antes de empezar a redactar la memoria, para tener ya una demo funcional
+y contenido real (comportamiento del pipeline, casos límite con audio real) de
+cara a la sección de diseño de la app y a los resultados.
+
+## Diseño de la interfaz
+- Interfaz Gradio en dos niveles: Nivel 1 = categoría de degradación (denoising,
+  dereverberation, super-resolución, de-clipping, separación de fuentes), Nivel 2 =
+  modelo dentro de esa categoría (individual vs. combinado MossFormer2, cuando aplique).
+- Gestión de memoria: un único modelo cargado en GPU a la vez, liberando el anterior
+  antes de cargar el siguiente (mismo patrón que `liberar_memoria_gpu` en las notebooks
+  de Colab, generalizado en un `model_manager.py` para reutilizar con los 6 modelos).
+
+## Implementación
+- Primer wrapper de inferencia conectado: **DeepFilterNet3** (denoising), reutilizando
+  la lógica de la notebook `01_DeepFilterNet_3.ipynb` (shims de compatibilidad de
+  torchaudio, `init_df()`, `enhance()`).
+- Baseline clásico (spectral gating) integrado en el mismo flujo, calculado siempre
+  junto al resultado del modelo IA para la comparativa IA vs. no-IA.
+- Métricas DNSMOS calculadas sobre las tres versiones (original, IA, baseline).
+
+## Bugs encontrados y resueltos
+1. **Colisión de nombres de paquete**: las carpetas `utils/` y `models/` colisionaban
+   con paquetes genéricos ya presentes en el entorno de Colab (probablemente
+   dependencias de `gradio`). Solución: renombradas a `tfg_audio_utils/` y
+   `tfg_models/`.
+2. **Orden de aplicación de los shims de torchaudio**: el parche de compatibilidad
+   (`AudioMetaData`, `torchaudio.info()`, necesario por la eliminación de estas
+   APIs en torchaudio >=2.9) se aplicaba dentro de la función de carga del modelo,
+   pero un import de `df.enhance` en otra función se ejecutaba antes, rompiendo la
+   importación. Solución: aplicar el shim a nivel de módulo, garantizando que se
+   ejecute antes de cualquier import de `df`/`torchaudio`.
+3. **Guardado incorrecto del audio procesado**: se usaba el `guardar_audio` genérico
+   (basado en `soundfile`) para la salida del modelo IA, cuando la notebook original
+   usaba `save_audio` (de `df.enhance`), pensado específicamente para el tensor que
+   devuelve `enhance()`. Causaba `LibsndfileError: Format not recognised`.
+
+## Hallazgo relevante para el bloque empírico (memoria)
+Al probar DeepFilterNet3 con el audio real del tutor (reverb fuerte, mic distante),
+el modelo generó picos de amplitud muy por encima de 1.0 (hasta el punto de que,
+al guardarse sin normalizar, se producía *wraparound* al convertir a int16 — crujido
+de saturación audible, con volumen pegado casi al máximo en la práctica totalidad
+del audio). Solucionado normalizando el pico antes de guardar (`normalizar_pico`,
+ya existente en los utils).
+
+Este comportamiento es coherente con el desajuste de dominio ya identificado en la
+notebook 06 (DeepFilterNet3 entrenado sobre DNS Challenge: voz adulta, mayormente
+inglés, condiciones de grabación controladas): con reverb real fuerte, el modelo
+puede sobre-amplificar o "alucinar" corrección de forma inestable. Las métricas
+DNSMOS, sin embargo, no reflejan bien este problema perceptual:
+
+| Versión              | OVRL  | SIG   | BAK   |
+|-----------------------|-------|-------|-------|
+| Original (degradado) | 1.385 | 1.578 | 1.790 |
+| DeepFilterNet3 (IA)   | 2.090 | 2.309 | 3.747 |
+| Baseline (no-IA)      | 1.400 | 1.578 | 1.843 |
+
+DNSMOS puntúa la salida de DeepFilterNet muy por encima del original y del baseline
+pese a la saturación perceptual evidente — un segundo caso (en sentido inverso al de
+la notebook 06) de discrepancia entre métrica no-intrusiva y percepción subjetiva,
+que refuerza el argumento central de la metodología dual (bibliográfico + empírico)
+del TFG.
+
+## Pendiente / próximos pasos
+- Revisar si sigue habiendo un recorte de audio al inicio de la salida IA (síntoma
+  reportado, pendiente de confirmar si es real o percepción).
+- Conectar el siguiente modelo (HTDemucs v4, separación de fuentes).
+- Documentar este hallazgo con más detalle (qué se oye exactamente, si varía según
+  la intensidad de la reverb en cada tramo) para la sección de resultados.
