@@ -468,3 +468,29 @@ del TFG.
 - Conectar el siguiente modelo (HTDemucs v4, separación de fuentes).
 - Documentar este hallazgo con más detalle (qué se oye exactamente, si varía según
   la intensidad de la reverb en cada tramo) para la sección de resultados.
+02/08/2026 — App funcional: depuración a fondo del pipeline de denoising
+Objetivo de la sesión
+
+Terminar de dejar 100% funcional la categoría de denoising en la app (DeepFilterNet3), tras los primeros bugs detectados en sesiones anteriores. Sesión larga, con varios problemas encadenados de entorno y de código.
+
+Reorganización de notebooks
+Se separó definitivamente la lógica de la app de la notebook de validación del modelo: 01_DeepFilterNet_3_6.ipynb vuelve a contener solo la validación individual de DeepFilterNet3 (bloque bibliográfico/empírico), sin celdas de Gradio.
+Nueva notebook dedicada app_gradio.ipynb: instala dependencias e inicia la app de Gradio. Es la que crecerá con la instalación de cada modelo nuevo que se conecte.
+Bugs de entorno (Colab) resueltos
+Versión de Gradio inestable: al no fijar versión, cada sesión instalaba una distinta, causando estilos rotos y desconexiones del túnel share=True.
+Bug real de Gradio 4.44.1 y 5.9.1: un TypeError: argument of type 'bool' is not iterable en gradio_client/utils.py (función get_type), reproducible con ambas versiones pese a tener las parejas gradio/gradio_client correctamente emparejadas. Se comprobó que la versión 6.20.0 no sufre este bug. Fijada gradio==6.20.0 en requirements.txt y en la celda de instalación de la notebook de la app.
+Conflicto de huggingface_hub: versión moderna de Colab incompatible con Gradio 4.44.1 (eliminó HfFolder). Dejó de ser relevante al pasar a Gradio 6.20.0.
+Numpy roto por instalar Gradio: instalar gradio==6.20.0 arrastra una versión de pandas que exige numpy>=2, rompiendo la extensión nativa de deepfilternet (compilada contra numpy 1.26.4). Solución: reinstalar numpy==1.26.4 justo después de instalar gradio, seguido de un reinicio de runtime.
+show_api no soportado en Gradio 6.20.0: parámetro específico de versiones anteriores, eliminado del launch() en la 6.x. Quitado de las llamadas.
+Bug de código encontrado y corregido (importante)
+Causa raíz de soundfile.LibsndfileError: Format not recognised: DeepFilterNet3 devuelve el audio como tensor con forma (canales, muestras) para audio estéreo. soundfile.write() (usado en guardar_audio) espera el orden contrario, (muestras, canales). Al no transponer, sf.write no reconocía el formato. Confirmado con un print de diagnóstico (shape=(2, 4224000)) antes de arreglarlo a ciegas.
+Explica también por qué usar save_audio (de df.enhance, basado en torchaudio, que sí espera (canales, muestras)) "funcionaba" en versiones anteriores del código: cada función de guardado esperaba un orden de ejes distinto.
+Fix aplicado en tfg_models/denoising.py: transponer el array (.T) antes de guardar únicamente cuando tiene 2 dimensiones (estéreo), manteniendo guardar_audio (con control total sobre la normalización de pico, a diferencia de save_audio, que parecía re-normalizar internamente el pico al guardar).
+Estado final
+
+Categoría de Denoising (DeepFilterNet3) funcionando de extremo a extremo en la app: selección de categoría/modelo (nivel 1/nivel 2), inferencia, comparación con baseline clásico, tabla de métricas DNSMOS, y guardado correcto del audio de salida (mono y estéreo) sin distorsión por desbordamiento ni error de formato.
+
+Pendiente / próximos pasos
+Quitar el print de debug ya innecesario en denoising.py.
+Conectar el siguiente modelo en la app: HTDemucs v4 (separación de fuentes).
+Seguir con MP-SENet, AudioSR, VoiceFixer y MossFormer2 en ese orden.
