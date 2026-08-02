@@ -87,21 +87,16 @@ def procesar(ruta_audio: str, ruta_salida: str):
     Ejecuta inferencia de DeepFilterNet3 sobre un archivo de audio en disco
     y guarda el resultado en ruta_salida.
 
-    Nota: convertimos a numpy y normalizamos el pico ANTES de guardar (ver más abajo),
-    porque en audios muy alejados del dominio de entrenamiento el modelo puede devolver
-    picos por encima de 1.0, y guardarlos tal cual con `save_audio` (conversión a int16
-    sin clampeo) provoca wraparound / crujido de saturación.
-
     Returns:
         audio_mejorado_arr (np.ndarray): señal de salida ya normalizada (pico 0.95),
-            usada después para calcular DNSMOS.
+            usada después para calcular DNSMOS. Forma (canales, muestras) o (muestras,).
         sr_modelo (int): sample rate del modelo (48000 Hz en DeepFilterNet3)
         pico_antes (float): pico máximo absoluto ANTES de normalizar, útil para
             detectar y registrar estos casos de desbordamiento en la memoria.
     """
-    from df.enhance import enhance, load_audio, save_audio
+    from df.enhance import enhance, load_audio
 
-    from tfg_audio_utils.audio_utils_funcionescomunes import normalizar_pico
+    from tfg_audio_utils.audio_utils_funcionescomunes import normalizar_pico, guardar_audio
 
     paquete = model_manager.obtener_modelo(
         "denoising", "deepfilternet", _cargar_deepfilternet
@@ -113,12 +108,6 @@ def procesar(ruta_audio: str, ruta_salida: str):
     audio_entrada, _ = load_audio(ruta_audio, sr=sr_modelo)
     audio_mejorado = enhance(modelo_dfn, df_state, audio_entrada)
 
-    # Convertimos a numpy ANTES de normalizar y guardar. En audios muy alejados
-    # del dominio de entrenamiento (reverb fuerte, mic distante), enhance()
-    # puede devolver picos muy por encima de 1.0; si se guarda tal cual con
-    # save_audio (que convierte a int16 internamente sin clampeo), esos picos
-    # desbordan el rango de int16 y provocan wraparound (el crujido de
-    # saturación). normalizar_pico() evita ese desbordamiento.
     if hasattr(audio_mejorado, "detach"):
         audio_mejorado_arr = np.array(audio_mejorado.detach().cpu()).squeeze()
     else:
@@ -127,6 +116,15 @@ def procesar(ruta_audio: str, ruta_salida: str):
     pico_antes = np.max(np.abs(audio_mejorado_arr))
     audio_mejorado_arr = normalizar_pico(audio_mejorado_arr, pico_objetivo=0.95)
 
-    save_audio(ruta_salida, audio_mejorado_arr, sr_modelo)
+    # Si el audio es estéreo, DeepFilterNet lo devuelve como (canales, muestras),
+    # pero soundfile espera (muestras, canales) para escribir multicanal.
+    # Sin esto, sf.write no reconoce el formato ("Format not recognised").
+    if audio_mejorado_arr.ndim == 2:
+        audio_mejorado_arr_guardar = audio_mejorado_arr.T
+    else:
+        audio_mejorado_arr_guardar = audio_mejorado_arr
+
+
+    guardar_audio(ruta_salida, audio_mejorado_arr_guardar, sr_modelo)
 
     return audio_mejorado_arr, sr_modelo, pico_antes

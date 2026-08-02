@@ -166,7 +166,9 @@ with gr.Blocks(title="Restauración interactiva de audio — TFG ETSIT/UPV") as 
         salida_baseline = gr.Audio(label="Resultado — Baseline clásico (no-IA)")
 
     tabla_metricas = gr.Dataframe(
-        label="DNSMOS (métrica no intrusiva, sin referencia limpia)"
+        headers=["Versión", "OVRL", "SIG", "BAK"],
+        datatype=["str", "number", "number", "number"],
+        label="DNSMOS (métrica no intrusiva, sin referencia limpia)",
     )
     aviso = gr.Markdown()
 
@@ -177,4 +179,5 @@ with gr.Blocks(title="Restauración interactiva de audio — TFG ETSIT/UPV") as 
     )
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    demo.queue()
+    demo.launch(server_name="0.0.0.0", server_port=7860, show_api=False)
