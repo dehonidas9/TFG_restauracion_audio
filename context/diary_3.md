@@ -492,3 +492,59 @@ Fix aplicado en tfg_models/denoising.py: transponer el array (.T) antes de guard
 
 Categoría de Denoising (DeepFilterNet3) funcionando de extremo a extremo en la app: selección de categoría/modelo (nivel 1/nivel 2), inferencia, comparación con baseline clásico, tabla de métricas DNSMOS, y guardado correcto del audio de salida (mono y estéreo) sin distorsión por desbordamiento ni error de formato.
 
+## 03-08-2026
+
+**Fase 4 — App Gradio: MP-SENet (dereverberation) y VoiceFixer v2 (de-clipping) conectados**
+
+- Se conecta MP-SENet a la app siguiendo el mismo patrón que `denoising.py`
+  (paquete `MPSENet`, checkpoint `JacobLinCool/MP-SENet-VB`, vía
+  `model_manager.obtener_modelo("dereverberation", "mpsenet", ...)`). Notebook
+  `app_gradio.ipynb` actualizada con la celda de instalación (`pip install
+  MPSENet`, sin Rust ni reinicio de kernel).
+- **Hallazgo importante (para la memoria):** con el audio real del tutor
+  (reverb fuerte, mic distante), la salida de MP-SENet suena a ruido blanco
+  casi constante, con solo 2 fragmentos donde se entiende algo de voz — pero
+  DNSMOS puntúa la IA por encima del baseline clásico. Causa raíz: el paquete
+  pip `MPSENet` solo expone los checkpoints `g_best_dns`/`g_best_vb` del
+  MP-SENet base, que son de **denoising** (DNS-Challenge / VoiceBank+DEMAND),
+  no de dereverberation. La "versión larga" del repo original (yxlu-0102) sí
+  cubre dereverb+BWE, pero no está empaquetada en el pip usado — no se
+  persigue esa vía por tiempo, se documenta como limitación y como el caso
+  más severo de domain mismatch de los tres encontrados hasta ahora (junto a
+  DeepFilterNet3 y MossFormer2).
+- Se detecta y corrige un bug de configuración: `login(token=...)` de HF no
+  persiste entre reinicios de kernel de Colab — había que moverlo a la celda
+  posterior al *último* reinicio (justo antes de lanzar la app), no a la
+  primera celda tras montar Drive.
+- Se conecta VoiceFixer v2 a la app (`declipping.py`, nuevo). A diferencia de
+  DeepFilterNet3/MP-SENet, la API de VoiceFixer es archivo-a-archivo
+  (`restore(input=..., output=...)`, sin devolver array en memoria) — el
+  wrapper escribe a un temporal, relee con `cargar_audio()`, normaliza y
+  calcula DNSMOS igual que el resto. Salida fija a 44100 Hz. Instalación con
+  `--no-deps` + dependencias sueltas (`torchlibrosa`, `progressbar`,
+  `GitPython`, `pyyaml`) para evitar que el `setup.py` de `voicefixer`
+  reinstale versiones antiguas de `librosa`/`matplotlib` (mismo tipo de
+  precaución que con AudioSR en la notebook 05).
+- Refactor de `app.py`: la selección de función de inferencia y de baseline
+  clásico pasa de `if/elif` hardcodeado a dos diccionarios
+  (`FUNCIONES_INFERENCIA`, `BASELINES_CLASICOS`), para que conectar AudioSR y
+  HTDemucs sea solo añadir una entrada. Nota: `baseline_declipping_interpolacion_cubica`
+  tiene firma distinta (`audio, umbral=0.99`, sin `sr`) — se envuelve en un
+  lambda para mantener la interfaz común `baseline(audio, sr)`.
+- Pendiente de probar por el usuario: VoiceFixer v2 con audio real
+  (de-clipping) — sesión de pruebas queda para más tarde.
+
+**Nota sobre selección de audio de prueba por categoría (pendiente de aplicar
+en próximas sesiones):** el audio real del tutor (reverb+eco) solo es
+representativo para Dereverberation y para el combinado MossFormer2. Para el
+resto hace falta audio específico de cada degradación:
+- *Denoising*: ruido aditivo real (no reverb).
+- *BWE*: audio con ancho de banda limitado (nota de voz comprimida, llamada,
+  o generarlo synthetically downsampleando una grabación limpia — mismo
+  método ya usado en la notebook 05).
+- *De-clipping*: audio con saturación real o generado sintéticamente
+  (amplificar por encima de ±1.0 y hard-clip).
+- *Separación de fuentes (HTDemucs)*: necesita música con voz + instrumentos,
+  no voz hablada sola — cualquier canción con acompañamiento vale.
+
+**Siguiente en cola:** conectar HTDemucs v4 (separación de fuentes) en la app.
