@@ -9,6 +9,12 @@ Diseño de interfaz en dos niveles:
 Gestión de memoria: un único modelo cargado a la vez (ver models/model_manager.py),
 siguiendo el mismo patrón que las notebooks de Colab (liberar_memoria_gpu entre
 modelos), priorizando evitar problemas de VRAM sobre la velocidad.
+
+Nota de diseño (añadida al conectar MP-SENet): la selección de función de
+inferencia y de baseline clásico ahora se hace por diccionario
+(FUNCIONES_INFERENCIA / BASELINES_CLASICOS) en vez de if/elif hardcodeado,
+para que conectar AudioSR, VoiceFixer y HTDemucs más adelante sea solo
+añadir una entrada, sin tocar la lógica de procesar_audio().
 """
 
 import os
@@ -21,11 +27,15 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from tfg_audio_utils.audio_utils_funcionescomunes import cargar_audio, guardar_audio
 from tfg_audio_utils.audio_utils_metricas_no_intrusivas import calcular_dnsmos
-from tfg_audio_utils.audio_utils_baselines_clasicos import baseline_denoising_spectral_gating
-from tfg_models import denoising
+from tfg_audio_utils.audio_utils_baselines_clasicos import (
+    baseline_denoising_spectral_gating,
+    baseline_dereverb_filtro_paso_alto,
+    baseline_declipping_interpolacion_cubica,
+)
+from tfg_models import denoising, dereverb, declipping
 
 # ---------------------------------------------------------------------------
-# Definición de categorías y variantes (Nivel 1 / Nivel 2)
+# Categorías y variantes (Nivel 1 / Nivel 2)
 # ---------------------------------------------------------------------------
 CATEGORIAS = {
     "Denoising": {
@@ -36,9 +46,9 @@ CATEGORIAS = {
         },
     },
     "Dereverberation": {
-        "activa": False,
+        "activa": True,
         "variantes": {
-            "MP-SENet (individual) — próximamente": None,
+            "MP-SENet (individual)": "mpsenet",
             "MossFormer2 (combinado) — próximamente": None,
         },
     },
@@ -50,13 +60,30 @@ CATEGORIAS = {
         },
     },
     "De-clipping": {
-        "activa": False,
-        "variantes": {"VoiceFixer v2 — próximamente": None},
+        "activa": True,
+        "variantes": {"VoiceFixer v2 (individual)": "voicefixer"},
     },
     "Separación de fuentes": {
         "activa": False,
         "variantes": {"HTDemucs v4 — próximamente": None},
     },
+}
+
+# clave_variante -> función procesar(ruta_audio, ruta_salida) -> (audio, sr, pico_antes)
+FUNCIONES_INFERENCIA = {
+    "deepfilternet": denoising.procesar,
+    "mpsenet": dereverb.procesar,
+    "voicefixer": declipping.procesar,
+}
+
+# categoria -> función baseline(audio_original, sr_original) -> audio_baseline
+BASELINES_CLASICOS = {
+    "Denoising": baseline_denoising_spectral_gating,
+    "Dereverberation": baseline_dereverb_filtro_paso_alto,
+    # baseline_declipping_interpolacion_cubica no recibe sr (solo audio y un
+    # umbral con default 0.99), así que se envuelve para respetar la firma
+    # común baseline(audio_original, sr_original) que usa procesar_audio().
+    "De-clipping": lambda audio, sr: baseline_declipping_interpolacion_cubica(audio),
 }
 
 
@@ -76,29 +103,37 @@ def procesar_audio(ruta_audio, categoria, variante_label):
             "implementado en esta app."
         )
 
+    funcion_inferencia = FUNCIONES_INFERENCIA.get(clave_variante)
+    if funcion_inferencia is None:
+        raise gr.Error(f"Variante '{clave_variante}' sin wrapper de inferencia todavía.")
+
+    funcion_baseline = BASELINES_CLASICOS.get(categoria)
+    if funcion_baseline is None:
+        raise gr.Error(
+            f"Categoría '{categoria}' todavía no tiene baseline clásico conectado."
+        )
+
     # --- Cargar audio original ---
     audio_original, sr_original = cargar_audio(
         ruta_audio, sr_objetivo=None, forzar_mono=True
     )
 
-    # --- Inferencia IA (por ahora solo DeepFilterNet3) ---
+    # --- Inferencia IA ---
     ruta_salida_ia = "/tmp/salida_ia.wav"
+    audio_mejorado, sr_modelo, pico_antes = funcion_inferencia(ruta_audio, ruta_salida_ia)
+
     aviso_saturacion = ""
-    if clave_variante == "deepfilternet":
-        audio_mejorado, sr_modelo, pico_antes = denoising.procesar(ruta_audio, ruta_salida_ia)
-        if pico_antes > 1.0:
-            aviso_saturacion = (
-                f"\n\n⚠️ Aviso: el modelo generó un pico de {pico_antes:.2f} "
-                "(por encima de 1.0) en este audio; se ha normalizado antes de "
-                "guardar para evitar distorsión por desbordamiento. Esto suele "
-                "indicar que el audio de entrada está muy alejado del dominio "
-                "de entrenamiento del modelo (útil para el bloque empírico)."
-            )
-    else:
-        raise gr.Error(f"Variante '{clave_variante}' sin wrapper de inferencia todavía.")
+    if pico_antes > 1.0:
+        aviso_saturacion = (
+            f"\n\n⚠️ Aviso: el modelo generó un pico de {pico_antes:.2f} "
+            "(por encima de 1.0) en este audio; se ha normalizado antes de "
+            "guardar para evitar distorsión por desbordamiento. Esto suele "
+            "indicar que el audio de entrada está muy alejado del dominio "
+            "de entrenamiento del modelo (útil para el bloque empírico)."
+        )
 
     # --- Baseline clásico (siempre se calcula, para la comparativa IA vs. no-IA) ---
-    audio_baseline = baseline_denoising_spectral_gating(audio_original, sr_original)
+    audio_baseline = funcion_baseline(audio_original, sr_original)
 
     # --- Guardar baseline para reproducir/descargar en la interfaz ---
     ruta_salida_baseline = "/tmp/salida_baseline.wav"
@@ -118,7 +153,7 @@ def procesar_audio(ruta_audio, categoria, variante_label):
                 "BAK": dnsmos_original.get("bak_mos"),
             },
             {
-                "Versión": "DeepFilterNet3 (IA)",
+                "Versión": f"{variante_label} (IA)",
                 "OVRL": dnsmos_ia.get("ovrl_mos"),
                 "SIG": dnsmos_ia.get("sig_mos"),
                 "BAK": dnsmos_ia.get("bak_mos"),
