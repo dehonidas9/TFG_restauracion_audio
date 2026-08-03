@@ -25,14 +25,16 @@ import pandas as pd
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from tfg_audio_utils.audio_utils_funcionescomunes import cargar_audio, guardar_audio
+from tfg_audio_utils.audio_utils_funcionescomunes import cargar_audio, guardar_audio, normalizar_pico
 from tfg_audio_utils.audio_utils_metricas_no_intrusivas import calcular_dnsmos
 from tfg_audio_utils.audio_utils_baselines_clasicos import (
     baseline_denoising_spectral_gating,
     baseline_dereverb_filtro_paso_alto,
     baseline_declipping_interpolacion_cubica,
+    baseline_separacion_hpss,
+    baseline_bwe_interpolacion_spline,
 )
-from tfg_models import denoising, dereverb, declipping
+from tfg_models import denoising, dereverb, declipping, separacion_fuentes, bwe
 
 # ---------------------------------------------------------------------------
 # Categorías y variantes (Nivel 1 / Nivel 2)
@@ -53,9 +55,9 @@ CATEGORIAS = {
         },
     },
     "Super-resolución (BWE)": {
-        "activa": False,
+        "activa": True,
         "variantes": {
-            "AudioSR (individual) — próximamente": None,
+            "AudioSR (individual)": "audiosr",
             "MossFormer2 (combinado) — próximamente": None,
         },
     },
@@ -64,8 +66,8 @@ CATEGORIAS = {
         "variantes": {"VoiceFixer v2 (individual)": "voicefixer"},
     },
     "Separación de fuentes": {
-        "activa": False,
-        "variantes": {"HTDemucs v4 — próximamente": None},
+        "activa": True,
+        "variantes": {"HTDemucs v4 (individual)": "htdemucs"},
     },
 }
 
@@ -74,6 +76,8 @@ FUNCIONES_INFERENCIA = {
     "deepfilternet": denoising.procesar,
     "mpsenet": dereverb.procesar,
     "voicefixer": declipping.procesar,
+    "htdemucs": separacion_fuentes.procesar,
+    "audiosr": bwe.procesar,
 }
 
 # categoria -> función baseline(audio_original, sr_original) -> audio_baseline
@@ -84,6 +88,17 @@ BASELINES_CLASICOS = {
     # umbral con default 0.99), así que se envuelve para respetar la firma
     # común baseline(audio_original, sr_original) que usa procesar_audio().
     "De-clipping": lambda audio, sr: baseline_declipping_interpolacion_cubica(audio),
+    # baseline_separacion_hpss devuelve (armonico, percusivo); se usa el
+    # armónico como proxy clásico de "voz/melodía", para comparar contra el
+    # stem 'vocals' de HTDemucs (ver docstring de la función en
+    # audio_utils_baselines_clasicos.py).
+    "Separación de fuentes": lambda audio, sr: baseline_separacion_hpss(audio, sr)[0],
+    # baseline_bwe_interpolacion_spline recibe (audio, sr_origen, sr_destino);
+    # se fija sr_destino = bwe.SR_SALIDA (48000) para que la comparación IA
+    # vs. no-IA sea al mismo sample rate de salida.
+    "Super-resolución (BWE)": lambda audio, sr: baseline_bwe_interpolacion_spline(
+        audio, sr, bwe.SR_SALIDA
+    ),
 }
 
 
@@ -117,6 +132,13 @@ def procesar_audio(ruta_audio, categoria, variante_label):
     audio_original, sr_original = cargar_audio(
         ruta_audio, sr_objetivo=None, forzar_mono=True
     )
+    # Normalización de pico defensiva: algunos audios de entrada (masters
+    # "calientes", downmix a mono que suma canales, etc.) pueden superar
+    # el rango ±1.0, lo cual rompe DNSMOS ("values must be between -1 and
+    # 1"). Se normaliza aquí, antes de usar audio_original para nada (ni
+    # DNSMOS del original ni el baseline clásico), igual que ya se hace con
+    # las salidas de cada modelo en sus respectivos wrappers.
+    audio_original = normalizar_pico(audio_original, pico_objetivo=0.95)
 
     # --- Inferencia IA ---
     ruta_salida_ia = "/tmp/salida_ia.wav"
