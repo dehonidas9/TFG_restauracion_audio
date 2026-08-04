@@ -548,3 +548,54 @@ resto hace falta audio específico de cada degradación:
   no voz hablada sola — cualquier canción con acompañamiento vale.
 
 **Siguiente en cola:** conectar HTDemucs v4 (separación de fuentes) en la app.
+
+## 2026-08-04
+
+**Fase 4 — App Gradio: ClearVoice/MossFormer2 conectado. App COMPLETA (6 categorías).**
+
+- Se conecta el último modelo pendiente, ClearVoice/MossFormer2 (combinado
+  SE+SR), a las 3 categorías donde aplica (Denoising, Dereverberation,
+  Super-resolución) — mismo `clave_variante` ("mossformer2") en las tres,
+  mismo pipeline encadenado que ya se validó en la notebook 06 (MossFormer2_SE_48K
+  → MossFormer2_SR_48K), solo cambia el baseline clásico de comparación según
+  la categoría desde la que se seleccione.
+- **Depuración larga de despliegue (no del modelo en sí):** el modelo,
+  probado de forma aislada, tarda ~26s con GPU (10s SE + 16s SR) — la
+  causa de los 504 Gateway Timeout repetidos en el túnel público de Gradio
+  no era el modelo, sino: (1) primera descarga de los checkpoints (211MB SE +
+  2.18GB SR) ocurriendo dentro de la ventana de tiempo de la petición HTTP, y
+  (2) servidores Gradio "zombis" acumulados por relanzar la celda de
+  `launch()` varias veces sin `close()` de por medio, dejando el túnel
+  hablando con una sesión que ya no existía.
+- Solución aplicada: celda de precarga de MossFormer2 (`model_manager.obtener_modelo`
+  para SE y SR) ejecutada ANTES de lanzar Gradio, para sacar la descarga+carga
+  de la ventana de tiempo de la petición del usuario. Protocolo de lanzamiento
+  limpio establecido: reiniciar sesión completo si hay dudas, lanzar la celda
+  de `app.demo.launch()` UNA sola vez, nunca relanzar sin `app.demo.close()`
+  antes.
+- Se probó `ngrok` como túnel alternativo para descartar el túnel de Gradio
+  como causa — confirmó que el modelo sí respondía, pero introdujo un
+  problema propio del plan gratuito de ngrok (interstitial de aviso
+  interceptando las peticiones internas de Gradio para servir el audio
+  procesado, rompiendo la visualización del resultado). Se descarta ngrok
+  para este proyecto; el túnel por defecto de Gradio (`share=True`) funciona
+  bien siguiendo el protocolo de lanzamiento limpio de arriba.
+- **Hallazgo empírico (para la memoria):** con un audio de prueba MUY CORTO
+  (~3s), el pipeline combinado SE+SR dio DNSMOS peor que el baseline clásico
+  no-IA de la categoría probada. Contexto: MossFormer2 no trocea
+  internamente (a diferencia del wrapper de AudioSR), así que con clips muy
+  cortos fuera del rango típico de entrenamiento puede comportarse de forma
+  menos estable; al ser 2 modelos encadenados hay doble oportunidad de
+  alucinar artefactos si el audio no tenía mucha degradación real que
+  corregir. Encaja en la misma línea argumental que los hallazgos de
+  MP-SENet/DeepFilterNet3/notebook 06 (divergencia métricas no-intrusivas vs.
+  comportamiento esperado). Pendiente: repetir con audio de duración normal
+  para confirmar si el resultado se mantiene.
+- **App Gradio completada: las 6 categorías de degradación están conectadas**
+  (Denoising, Dereverberation, De-clipping, Separación de fuentes,
+  Super-resolución, con MossFormer2 combinado disponible en las 3 primeras +
+  BWE). Cierra la Fase 4 del proyecto.
+
+**Siguiente en cola:** Fase 5 — despliegue en Hugging Face Space (documento
+ya redactado con el borrador de por qué, pendiente de decidir SDK Docker vs.
+Gradio simple según si `deepfilternet` necesita compilar Rust también ahí).
