@@ -34,7 +34,7 @@ from tfg_audio_utils.audio_utils_baselines_clasicos import (
     baseline_separacion_hpss,
     baseline_bwe_interpolacion_spline,
 )
-from tfg_models import denoising, dereverb, declipping, separacion_fuentes, bwe
+from tfg_models import denoising, dereverb, declipping, separacion_fuentes, bwe, mossformer2
 
 # ---------------------------------------------------------------------------
 # Categorías y variantes (Nivel 1 / Nivel 2)
@@ -44,21 +44,21 @@ CATEGORIAS = {
         "activa": True,
         "variantes": {
             "DeepFilterNet3 (individual)": "deepfilternet",
-            "MossFormer2 (combinado) — próximamente": None,
+            "MossFormer2 (combinado)": "mossformer2",
         },
     },
     "Dereverberation": {
         "activa": True,
         "variantes": {
             "MP-SENet (individual)": "mpsenet",
-            "MossFormer2 (combinado) — próximamente": None,
+            "MossFormer2 (combinado)": "mossformer2",
         },
     },
     "Super-resolución (BWE)": {
         "activa": True,
         "variantes": {
             "AudioSR (individual)": "audiosr",
-            "MossFormer2 (combinado) — próximamente": None,
+            "MossFormer2 (combinado)": "mossformer2",
         },
     },
     "De-clipping": {
@@ -78,6 +78,7 @@ FUNCIONES_INFERENCIA = {
     "voicefixer": declipping.procesar,
     "htdemucs": separacion_fuentes.procesar,
     "audiosr": bwe.procesar,
+    "mossformer2": mossformer2.procesar,
 }
 
 # categoria -> función baseline(audio_original, sr_original) -> audio_baseline
