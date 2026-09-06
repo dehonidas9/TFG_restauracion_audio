@@ -1,0 +1,26 @@
+# --- Añadir/fusionar esto en el .gitignore del repo ---
+
+# Checkpoints y pesos descargados (grandes, se descargan aparte via el notebook)
+gradio_app/pesos/
+**/*.ckpt
+**/*.pt
+checkpoints/
+
+# Caché de Hugging Face
+cache/
+
+# Salidas generadas al ejecutar la app / notebooks
+outputs/
+
+# Audios sintéticos generados por generar_audios_prueba.py (y su manifiesto)
+audios_sinteticos/
+*_manifiesto.csv
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Entornos virtuales locales (si se ejecutan scripts fuera de Colab)
+.venv/
+env311/
