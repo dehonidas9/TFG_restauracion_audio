@@ -39,7 +39,6 @@ Cada categoría incluye además un baseline clásico (no basado en IA) como refe
 TFG_restauracion_audio/
 ├── README.md
 ├── .gitignore
-├── GIT_CHEATSHEET.md               # Comandos git de referencia rápida
 ├── context/                        # Seguimiento del proyecto (para el tutor)
 │   ├── objectives.md
 │   ├── TFG_plan.md
